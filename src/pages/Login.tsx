@@ -9,7 +9,7 @@ import BackgroundAnimation from '../components/BackgroundAnimation';
 const Login: React.FC = () => {
   return (
     <>
-        {/* App Background Image... */}
+    {/* App Background Image... */}
     <BackgroundAnimation />
    
     <motion.div
