@@ -7,6 +7,8 @@ import { auth } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import Lottie from "lottie-react";
 import CatLove from '../assets/Lovely cats.json'
+import { Link } from "react-router-dom";
+import onlineStatus from '../assets/Wave animation.json'
 
 function Chat() {
   const [selectedUser, setSelectedUser] = useState<UserDetails | null>(null);
@@ -134,7 +136,7 @@ function Chat() {
               className="flex-1 flex items-center justify-center gap-1.5 bg-purple-600/80 hover:bg-purple-500 px-2.5 py-1.5 rounded-md transition-all duration-200 text-xs"
             >
               <User size={14} />
-              <span>Profile</span>
+              <span><Link to='/profile'>Profile</Link></span>
             </motion.button>
             <motion.button
               whileHover={{ scale: 1.1 }}
@@ -238,7 +240,8 @@ function Chat() {
                       <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center font-semibold text-sm">
                         {selectedUser.name.charAt(0)}
                       </div>
-                      <div className={`absolute -bottom-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-gray-900 ${getStatusColor(selectedUser.status)}`} />
+                      <Lottie animationData={onlineStatus} className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full`} loop={true} />
+                      {/* <div className={`absolute -bottom-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-gray-900 ${getStatusColor(selectedUser.status)}`} /> */}
                     </div>
                     <div className="flex-1">
                       <h2 className="font-bold text-base">{selectedUser.name}</h2>
