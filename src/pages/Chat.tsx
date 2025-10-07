@@ -240,7 +240,7 @@ function Chat() {
                       <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center font-semibold text-sm">
                         {selectedUser.name.charAt(0)}
                       </div>
-                      <Lottie animationData={onlineStatus} className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full`} loop={true} />
+                      <Lottie animationData={onlineStatus} className={selectedUser.status !== 'offline' ? `absolute -bottom-1 -right-1 w-4 h-4 rounded-full` : `hidden`} loop={true} />
                       {/* <div className={`absolute -bottom-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-gray-900 ${getStatusColor(selectedUser.status)}`} /> */}
                     </div>
                     <div className="flex-1">
