@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { UserPlus, Users, Search, MoreVertical, Phone, Video, Smile, Paperclip, Send, ArrowLeft } from "lucide-react";
-import type { User, ChatMessage } from "../types/chat";
+import { UserPlus, Users, Search, MoreVertical, Phone, Video, Smile, Paperclip, Send, ArrowLeft, User } from "lucide-react";
+import type { UserDetails, ChatMessage } from "../types/chat";
 import { sidebarAnimations, chatAnimations, pageTransition } from "../animations/chatAnimation";
 import { auth } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -9,7 +9,7 @@ import Lottie from "lottie-react";
 import CatLove from '../assets/Lovely cats.json'
 
 function Chat() {
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserDetails | null>(null);
   const [message, setMessage] = useState("");
   const [isMobileChatOpen, setIsMobileChatOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string>();
@@ -25,7 +25,7 @@ function Chat() {
     return () => unsubscribe();
   }, []);
 
-  const friends: User[] = [
+  const friends: UserDetails[] = [
     { id: 1, name: "Alice Johnson", lastMsg: "See you tomorrow!", status: "online" },
     { id: 2, name: "Bob Smith", lastMsg: "Let's code tonight.", status: "typing" },
     { id: 3, name: "Charlie Brown", lastMsg: "Hey there!", status: "offline" },
@@ -38,7 +38,7 @@ function Chat() {
     { id: 3, text: "That's great! How's it going?", sender: "other", timestamp: new Date(Date.now() - 1200000) },
   ];
 
-  const getStatusColor = (status: User['status']) => {
+  const getStatusColor = (status: UserDetails['status']) => {
     switch (status) {
       case 'online': return 'bg-green-500';
       case 'typing': return 'bg-blue-500';
@@ -47,7 +47,7 @@ function Chat() {
     }
   };
 
-  const getStatusText = (status: User['status']) => {
+  const getStatusText = (status: UserDetails['status']) => {
     switch (status) {
       case 'online': return 'Online';
       case 'typing': return 'Typing...';
@@ -56,7 +56,7 @@ function Chat() {
     }
   };
 
-  const handleUserSelect = (user: User) => {
+  const handleUserSelect = (user: UserDetails) => {
     setSelectedUser(user);
     setIsMobileChatOpen(true);
   };
@@ -108,26 +108,44 @@ function Chat() {
       >
         {/* Header with smaller buttons */}
 
-        <div className="p-4 border-b border-gray-700/50">
+        <div className="p-3 border-b border-gray-700/50">
           <div className="flex gap-2">
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="flex-1 flex items-center justify-center gap-2 bg-blue-600/80 hover:bg-blue-500 px-3 py-2 rounded-lg transition-all duration-200 text-sm"
+              className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600/80 hover:bg-blue-500 px-2.5 py-1.5 rounded-md transition-all duration-200 text-xs"
             >
-              <Users size={16} />
-              <span>Find People</span>
+              <Users size={14} />
+              <span>Find</span>
             </motion.button>
+
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="flex-1 flex items-center justify-center gap-2 bg-green-600/80 hover:bg-green-500 px-3 py-2 rounded-lg transition-all duration-200 text-sm"
+              className="flex-1 flex items-center justify-center gap-1.5 bg-green-600/80 hover:bg-green-500 px-2.5 py-1.5 rounded-md transition-all duration-200 text-xs"
             >
-              <UserPlus size={16} />
+              <UserPlus size={14} />
               <span>Requests</span>
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="flex-1 flex items-center justify-center gap-1.5 bg-purple-600/80 hover:bg-purple-500 px-2.5 py-1.5 rounded-md transition-all duration-200 text-xs"
+            >
+              <User size={14} />
+              <span>Profile</span>
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              className="flex items-center justify-center bg-gray-700/70 hover:bg-gray-600 p-2 rounded-md transition-all duration-200"
+            >
+              <MoreVertical size={16} />
             </motion.button>
           </div>
         </div>
+
 
         {/* Search */}
         <div className="p-3">
@@ -156,8 +174,8 @@ function Chat() {
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.99 }}
                 className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${selectedUser?.id === friend.id
-                    ? 'bg-blue-600/20 border border-blue-500/50'
-                    : 'bg-gray-700/30 hover:bg-gray-700/50 border border-transparent'
+                  ? 'bg-blue-600/20 border border-blue-500/50'
+                  : 'bg-gray-700/30 hover:bg-gray-700/50 border border-transparent'
                   }`}
                 onClick={() => handleUserSelect(friend)}
               >
@@ -225,7 +243,7 @@ function Chat() {
                     <div className="flex-1">
                       <h2 className="font-bold text-base">{selectedUser.name}</h2>
                       <p className={`text-xs ${selectedUser.status === 'online' ? 'text-green-400' :
-                          selectedUser.status === 'typing' ? 'text-blue-400' : 'text-gray-400'
+                        selectedUser.status === 'typing' ? 'text-blue-400' : 'text-gray-400'
                         }`}>
                         {getStatusText(selectedUser.status)}
                       </p>
@@ -261,8 +279,8 @@ function Chat() {
                       className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div className={`max-w-xs lg:max-w-md px-3 py-2 rounded-2xl ${msg.sender === 'user'
-                          ? 'bg-blue-600 rounded-br-none'
-                          : 'bg-gray-700 rounded-bl-none'
+                        ? 'bg-blue-600 rounded-br-none'
+                        : 'bg-gray-700 rounded-bl-none'
                         }`}>
                         <p className="text-white text-sm">{msg.text}</p>
                         <p className="text-xs opacity-60 mt-1 text-right">
