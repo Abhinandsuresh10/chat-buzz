@@ -1,4 +1,4 @@
-export interface User {
+export interface UserDetails {
   id: number;
   name: string;
   lastMsg: string;
