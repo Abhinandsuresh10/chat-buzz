@@ -1,25 +1,59 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Edit3, Check, X, User, Phone, Calendar, Camera } from "lucide-react";
 import Lottie from "lottie-react";
 import rainbowCat from '../assets/Space Cat.json'
+import { onAuthStateChanged } from "firebase/auth";
+import { auth, db } from "../firebase";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import CatLove from '../assets/Lovely cats.json'
 
 const Profile = () => {
+    const [loading, setLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     const [userData, setUserData] = useState({
-        name: "Abhinand Suresh",
-        email: "abhinand@example.com",
-        age: "21",
-        phone: "+91 9876543210",
-        interests: ["Coding", "Gaming", "Music"],
+        name: "",
+        email: "",
+        age: "",
+        phone: "",
+        interests: [] as string[],
     });
 
     const [profileImage, setProfileImage] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const [errors, setErrors] = useState<{ name?: boolean, age?: boolean, phone?: boolean }>({});
 
     const INTEREST_OPTIONS = [
         "Coding", "Gaming", "Music", "Movies", "Travel", "Sports", "Reading",
     ];
+
+
+    // fetching user data from firebase...
+
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+            if (currentUser) {
+                const userRef = doc(db, 'users', currentUser.uid);
+                const docSnap = await getDoc(userRef);
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    setUserData({
+                        name: data.name || "",
+                        email: data.email || "",
+                        age: data.age || "",
+                        phone: data.phone || "",
+                        interests: data.interests || [],
+                    });
+                    if (data.profileImage) setProfileImage(data.profileImage);
+                }
+            }
+            setLoading(false);
+        });
+        return () => unsubscribe();
+    }, []);
+
+
+    // to handle the array of interests...
 
     const toggleInterest = (interest: string) => {
         setUserData((prev) => {
@@ -39,6 +73,68 @@ const Profile = () => {
         const imageURL = URL.createObjectURL(file);
         setProfileImage(imageURL);
     };
+
+    // handling the user data update....
+
+    const handleUpdateProfile = async () => {
+        if (!auth.currentUser) return;
+
+        const isValid =
+            validateField("name", userData.name) &&
+            validateField("age", userData.age) &&
+            validateField("phone", userData.phone);
+
+        if (!isValid) return;
+
+        const userRef = doc(db, 'users', auth.currentUser.uid);
+
+
+        try {
+            await setDoc(
+                userRef,
+                {
+                    name: userData.name,
+                    age: userData.age,
+                    phone: userData.phone,
+                    interests: userData.interests,
+                    profileImage: profileImage || null,
+                    updatedAt: new Date(),
+                },
+                { merge: true }
+            );
+            setIsEditing(false);
+            console.log("Profile updated successfully!");
+        } catch (error) {
+            console.error("Error updating profile:", error);
+        }
+    }
+
+    // error validation function...
+
+    const validateField = (field: string, value: string) => {
+        let valid = true;
+        if (field === "name") valid = value.trim().length > 0;
+        if (field === "age") valid = /^\d+$/.test(value) && Number(value) > 0;
+        if (field === "phone") valid = /^\+?\d{10,15}$/.test(value);
+        setErrors((prev) => ({ ...prev, [field]: !valid }));
+        return valid;
+    };
+
+    if (loading) {
+        return (
+            <motion.div
+                className="flex h-screen items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800 text-white"
+            >
+                <div className="flex flex-col items-center">
+                    <Lottie
+                        animationData={CatLove}
+                        loop={true}
+                        className="w-48 h-48" // smaller size (192px)
+                    />
+                </div>
+            </motion.div>
+        );
+    }
 
     return (
         <motion.div
@@ -98,7 +194,8 @@ const Profile = () => {
                                 type="text"
                                 value={userData.name}
                                 onChange={(e) => setUserData({ ...userData, name: e.target.value })}
-                                className="bg-gray-700/50 rounded-lg px-3 py-2 text-sm w-full outline-none ring-1 ring-blue-500"
+                                className={`bg-gray-700/50 rounded-lg px-3 py-2 text-sm w-full outline-none ring-1 ${errors.name ? "ring-red-500" : "ring-blue-500"
+                                    }`}
                                 placeholder="Full Name"
                             />
                         ) : (
@@ -124,7 +221,7 @@ const Profile = () => {
                             disabled={!isEditing}
                             value={userData.age}
                             onChange={(e) => setUserData({ ...userData, age: e.target.value })}
-                            className={`flex-1 bg-gray-700/50 rounded-lg px-3 py-2 text-sm outline-none ${isEditing ? "ring-1 ring-blue-500" : "opacity-70"
+                            className={`flex-1 bg-gray-700/50 rounded-lg px-3 py-2 text-sm outline-none ring-1 ${errors.age ? "ring-red-500" : isEditing ? "ring-blue-500" : "opacity-70"
                                 }`}
                             placeholder="Age"
                         />
@@ -135,7 +232,7 @@ const Profile = () => {
                             disabled={!isEditing}
                             value={userData.phone}
                             onChange={(e) => setUserData({ ...userData, phone: e.target.value })}
-                            className={`flex-1 bg-gray-700/50 rounded-lg px-3 py-2 text-sm outline-none ${isEditing ? "ring-1 ring-blue-500" : "opacity-70"
+                            className={`flex-1 bg-gray-700/50 rounded-lg px-3 py-2 text-sm outline-none ring-1 ${errors.phone ? "ring-red-500" : isEditing ? "ring-blue-500" : "opacity-70"
                                 }`}
                             placeholder="Phone"
                         />
@@ -158,8 +255,8 @@ const Profile = () => {
                                     disabled={!isEditing}
                                     onClick={() => toggleInterest(interest)}
                                     className={`px-3 py-1 rounded-full text-xs border transition-all ${selected
-                                            ? "bg-blue-600 border-blue-500"
-                                            : "bg-gray-700/40 border-gray-600"
+                                        ? "bg-blue-600 border-blue-500"
+                                        : "bg-gray-700/40 border-gray-600"
                                         } ${!isEditing ? "opacity-60 cursor-default" : "hover:bg-gray-600/60"}`}
                                 >
                                     {interest}
@@ -190,7 +287,7 @@ const Profile = () => {
                             <motion.button
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
-                                onClick={() => setIsEditing(false)}
+                                onClick={handleUpdateProfile}
                                 className="flex items-center gap-1 bg-green-600 hover:bg-green-500 px-4 py-2 rounded-lg text-sm"
                             >
                                 <Check size={16} /> Update Profile
