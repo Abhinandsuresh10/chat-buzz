@@ -90,6 +90,14 @@ const Profile = () => {
 
 
         try {
+            let imageUrl = profileImage;
+            const fileInput = fileInputRef.current?.files?.[0];
+            if (fileInput) {
+                console.log("Uploading new profile image...");
+                const uploadedUrl = await uploadToCloudinary(fileInput);
+                if (uploadedUrl) imageUrl = uploadedUrl;
+            }
+
             await setDoc(
                 userRef,
                 {
@@ -97,7 +105,7 @@ const Profile = () => {
                     age: userData.age,
                     phone: userData.phone,
                     interests: userData.interests,
-                    profileImage: profileImage || null,
+                    profileImage: imageUrl || null,
                     updatedAt: new Date(),
                 },
                 { merge: true }
@@ -119,6 +127,28 @@ const Profile = () => {
         setErrors((prev) => ({ ...prev, [field]: !valid }));
         return valid;
     };
+
+    //upload profile on cloudinary..
+    const uploadToCloudinary = async (file: File) => {
+        const data = new FormData();
+        data.append("file", file);
+        data.append("upload_preset", "chatBuzz");
+        data.append("folder", "chatBuzz");
+
+        try {
+            const res = await fetch("https://api.cloudinary.com/v1_1/dit3hmnff/image/upload", {
+                method: "POST",
+                body: data,
+            });
+            const json = await res.json();
+            return json.secure_url;
+        } catch (err) {
+            console.error("Cloudinary upload failed:", err);
+            return null;
+        }
+    };
+
+
 
     if (loading) {
         return (
