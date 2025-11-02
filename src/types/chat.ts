@@ -8,6 +8,7 @@ export interface UserDetails {
   status: 'online' | 'offline' | 'typing';
   profileImage?: string;
   lastMsg?: string;
+  lastMsgTime?: Date;
 }
 
 export interface ChatMessage {

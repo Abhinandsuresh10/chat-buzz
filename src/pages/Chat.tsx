@@ -6,16 +6,18 @@ import {
 import type { UserDetails, ChatMessage } from "../types/chat";
 import { sidebarAnimations, chatAnimations, pageTransition } from "../animations/chatAnimation";
 import { auth, db } from "../firebase";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import Lottie from "lottie-react";
 import CatLove from '../assets/Lovely cats.json';
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import onlineStatus from '../assets/Wave animation.json';
 import {
   addDoc, collection, doc, getDocs, onSnapshot,
-  orderBy, query, serverTimestamp
+  orderBy, query, serverTimestamp,
+  updateDoc
 } from "firebase/firestore";
 import ChatInput from "../components/chatInput";
+import { Check, Checks } from "phosphor-react";
 
 function Chat() {
   const [selectedUser, setSelectedUser] = useState<UserDetails | null>(null);
@@ -28,7 +30,7 @@ function Chat() {
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const [isUserNearBottom, setIsUserNearBottom] = useState(true);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
-  // Realtime user status listener (merged from UserStatus)
+   const [menuOpen, setMenuOpen] = useState(false);
   const [liveStatus, setLiveStatus] = useState<{ [key: string]: string }>({});
 
   useEffect(() => {
@@ -50,22 +52,25 @@ function Chat() {
 
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, "users"));
-        const userList = querySnapshot.docs.map((doc) => ({
+    if (!userEmail) return;
+
+    const usersRef = collection(db, "users");
+    const unsubscribe = onSnapshot(usersRef, (snapshot) => {
+      const userList = snapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
           id: doc.id,
           ...doc.data(),
-        })) as UserDetails[];
+          lastMsgTime: data.lastMsgTime?.toDate ? data.lastMsgTime.toDate() : data.lastMsgTime,
+        }
+      }) as UserDetails[];
 
-        setUsers(userList.filter((u) => u.email !== userEmail));
-      } catch (err) {
-        console.error("Error fetching users:", err);
-      }
-    };
+      setUsers(userList.filter((u) => u.email !== userEmail));
+    });
 
-    if (userEmail) fetchUsers();
+    return () => unsubscribe();
   }, [userEmail]);
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -83,17 +88,45 @@ function Chat() {
     e.preventDefault();
     if (!message.trim() || !selectedUser || !userEmail) return;
 
+    const isReceiverOnline = liveStatus[selectedUser.id] === "online";
+
     const chatId = getChatId(userEmail, selectedUser.email);
-    await addDoc(collection(db, "chats", chatId, "messages"), {
+    const newMsg = {
       senderId: userEmail,
       receiverId: selectedUser.email,
       text: message,
-      status: "sent",
-      type: 'text',
+      status: isReceiverOnline ? "delivered" : "sent",
+      type: "text",
       timestamp: serverTimestamp(),
-    });
+    };
+
+    // 1️⃣ Add to chat messages collection
+    await addDoc(collection(db, "chats", chatId, "messages"), newMsg);
+
+    // 2️⃣ Update sender's and receiver's last message preview
+    const senderRef = doc(db, "users", auth.currentUser?.uid || "");
+    const receiverRef = doc(db, "users", selectedUser.id);
+
+    const previewText =
+      message.length > 25 ? message.slice(0, 25) + "..." : message;
+
     setMessage("");
+
+    await Promise.all([
+      updateDoc(senderRef, {
+        lastMsg: previewText,
+        lastMsgTime: serverTimestamp(),
+      }),
+      updateDoc(receiverRef, {
+        lastMsg: previewText,
+        lastMsgTime: serverTimestamp(),
+      }),
+    ]);
+
+    // 3️⃣ Clear input
+
   };
+
 
   useEffect(() => {
     if (!selectedUser || !userEmail) return;
@@ -154,13 +187,13 @@ function Chat() {
   }, [messages, isUserNearBottom]);
 
   useEffect(() => {
-    if (!selectedUser) return;
+    if (!selectedUser || messages.length === 0) return;
     const t = setTimeout(() => {
       scrollToBottom(true);
-    }, 150);
+    }, 200);
 
     return () => clearTimeout(t);
-  }, [selectedUser]);
+  }, [selectedUser, messages]);
 
 
   const handleUserSelect = (user: UserDetails) => {
@@ -190,7 +223,11 @@ function Chat() {
     } else if (fileType === "pdf") {
       formData.append("folder", "chatBuzz/files")
       uploadUrl = import.meta.env.VITE_CLOUDINARY_FILE;
+    } else if (fileType === "audio") {
+      formData.append("folder", "chatBuzz/voices");
+      uploadUrl = import.meta.env.VITE_CLOUDINARY_AUDIO;
     }
+
 
     try {
       const res = await fetch(uploadUrl, {
@@ -233,6 +270,63 @@ function Chat() {
     }
   };
 
+  useEffect(() => {
+    if (!selectedUser?.id || !userEmail) return;
+
+    const userRef = doc(db, "users", selectedUser.id);
+    const unsubscribe = onSnapshot(userRef, async (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const newStatus = data.status || "offline";
+        setLiveStatus((prev) => ({ ...prev, [selectedUser.id]: newStatus }));
+
+        // 🔹 Mark messages as delivered if receiver is online
+        if (newStatus === "online") {
+          const chatId = getChatId(userEmail, selectedUser.email);
+          const chatRef = collection(db, "chats", chatId, "messages");
+
+          const q = query(chatRef);
+          const snapshot = await getDocs(q);
+
+          const updates = snapshot.docs
+            .filter((doc) => doc.data().receiverId === selectedUser.email && doc.data().status === "sent")
+            .map((doc) => updateDoc(doc.ref, { status: "delivered" }));
+
+          await Promise.all(updates);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [selectedUser, userEmail]);
+
+ 
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    try {
+      const currentUser = auth.currentUser;
+
+    if (currentUser) {
+      const userRef = doc(db, "users", currentUser.uid);
+      await updateDoc(userRef, { status: "offline" });
+    }
+      await signOut(auth);
+      navigate("/login");
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  };
+
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".menu-container")) setMenuOpen(false);
+    };
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, []);
 
 
   if (!userEmail) {
@@ -268,13 +362,29 @@ function Chat() {
               <User size={14} />
               <span><Link to="/profile">Profile</Link></span>
             </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.95 }}
-              className="p-2 bg-gray-700/70 hover:bg-gray-600 rounded-md"
-            >
-              <MoreVertical size={16} />
-            </motion.button>
+            
+            <div className="relative menu-container">
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                className="p-2 bg-gray-700/70 hover:bg-gray-600 rounded-md"
+                onClick={() => setMenuOpen(!menuOpen)}
+              >
+                <MoreVertical size={16} />
+              </motion.button>
+
+              {menuOpen && (
+                <div className="absolute right-0 mt-2 w-28 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-50">
+                  <button
+                    onClick={handleLogout}
+                    className="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-700 rounded-lg"
+                  >
+                    Logout
+                  </button>
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
 
@@ -324,7 +434,20 @@ function Chat() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm truncate">{user.name}</p>
+                    {/* Name + Time in one row */}
+                    <div className="flex justify-between items-center">
+                      <p className="font-semibold text-sm truncate">{user.name}</p>
+                      {user.lastMsgTime && (
+                        <p className="text-[10px] text-gray-500 flex-shrink-0 ml-2">
+                          {user.lastMsgTime.toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Last message or typing */}
                     <p
                       className={`text-xs truncate ${user.status === "typing"
                         ? "text-blue-400 font-medium"
@@ -334,6 +457,7 @@ function Chat() {
                       {user.status === "typing" ? "Typing..." : user.lastMsg}
                     </p>
                   </div>
+
                 </div>
               </motion.div>
             ))}
@@ -392,10 +516,10 @@ function Chat() {
                       <h2 className="font-bold text-base">{selectedUser.name}</h2>
                       <p
                         className={`text-xs ${liveStatus[selectedUser.id] === "online"
-                            ? "text-green-400"
-                            : liveStatus[selectedUser.id] === "typing"
-                              ? "text-blue-400"
-                              : "text-gray-400"
+                          ? "text-green-400"
+                          : liveStatus[selectedUser.id] === "typing"
+                            ? "text-blue-400"
+                            : "text-gray-400"
                           }`}
                       >
                         {liveStatus[selectedUser.id] === "online"
@@ -477,14 +601,34 @@ function Chat() {
                           </a>
                         )}
 
-                        <p className="text-xs opacity-60 mt-1 text-right">
+                        {msg.type === "audio" && (
+                          <audio
+                            controls
+                            className="rounded-lg shadow-md max-w-[220px] sm:max-w-[280px] md:max-w-[320px]"
+                          >
+                            <source src={msg.text} type="audio/mp3" />
+                          </audio>
+                        )}
+
+
+                        <p className="text-xs opacity-60 mt-1 text-right flex items-center justify-end gap-1">
                           {msg.timestamp
                             ? msg.timestamp.toLocaleTimeString([], {
                               hour: "2-digit",
                               minute: "2-digit",
                             })
                             : ""}
+
+
+                          {msg.senderId === userEmail && (
+                            <>
+                              {msg.status === "sent" && <Check size={14} color="white" weight="bold" />}
+                              {msg.status === "delivered" && <Checks size={14} color="white" weight="bold" />}
+                              {msg.status === "read" && <Checks size={14} color="#3B82F6" weight="bold" />}
+                            </>
+                          )}
                         </p>
+
                       </div>
                     </motion.div>
                   ))}

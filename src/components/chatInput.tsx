@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Paperclip, Image, FileVideo, FileText, Smile, Send } from "lucide-react";
+import { Paperclip, Image, FileVideo, FileText, Smile, Send, StopCircle, Mic } from "lucide-react";
 import EmojiPicker from "emoji-picker-react";
 import type { EmojiClickData } from "emoji-picker-react";
 import { auth, db } from "../firebase";
@@ -22,6 +22,10 @@ const ChatInput: React.FC<ChatInputProps> = ({
 }) => {
   const [showFileOptions, setShowFileOptions] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const fileInputRefs = {
     image: useRef<HTMLInputElement>(null),
@@ -54,6 +58,55 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
   const handleEmojiClick = (emojiData: EmojiClickData) => {
     setMessage((prev) => prev + emojiData.emoji);
+  };
+
+  const handeKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend(e as any);
+      setMessage("");
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: BlobPart[] = [];
+      recorder.ondataavailable = (e) => chunks.push(e.data);
+      recorder.onstop = () => {
+        const mimeType =
+          MediaRecorder.isTypeSupported("audio/webm")
+            ? "audio/webm"
+            : MediaRecorder.isTypeSupported("audio/mp4")
+              ? "audio/mp4"
+              : "audio/mpeg";
+
+        const blob = new Blob(chunks, { type: mimeType });
+        setAudioBlob(blob);
+      };
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+    } catch (error) {
+      console.error("Mic access denied:", error);
+    }
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    setIsRecording(false);
+  };
+
+  const sendVoiceMessage = () => {
+    if (audioBlob && handleFileUpload) {
+      const audioFile = new File([audioBlob], `voice_${Date.now()}.mp3`, {
+        type: "audio/mp3",
+      });
+      handleFileUpload(audioFile, "audio");
+      setAudioBlob(null);
+    }
   };
 
   return (
@@ -124,8 +177,40 @@ const ChatInput: React.FC<ChatInputProps> = ({
         className="hidden"
         onChange={(e) => handleFileChange(e, "pdf")}
       />
+
+
+      <motion.button
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+        onClick={isRecording ? stopRecording : startRecording}
+        className={`${isRecording ? "text-red-500" : "text-gray-400 hover:text-white"
+          } transition-colors`}
+      >
+        {isRecording ? <StopCircle size={20} /> : <Mic size={18} />}
+      </motion.button>
+
+      {/* Show recorded voice preview */}
+      {audioBlob && (
+        <div className="flex items-center gap-2 bg-gray-700/40 px-3 py-2 rounded-lg">
+          <audio src={URL.createObjectURL(audioBlob)} controls className="h-8" />
+          <button
+            onClick={sendVoiceMessage}
+            className="bg-blue-600 px-3 py-1 rounded-md text-xs hover:bg-blue-500"
+          >
+            Send
+          </button>
+          <button
+            onClick={() => setAudioBlob(null)}
+            className="bg-red-600 px-3 py-1 rounded-md text-xs hover:bg-red-500"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       <textarea
         value={message}
+        onKeyDown={handeKeyDown}
         onChange={async (e) => {
           setMessage(e.target.value);
 

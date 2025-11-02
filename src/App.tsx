@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom"
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import Login from "./pages/Login"
 import Chat from "./pages/Chat"
 import { Toaster } from "react-hot-toast"
@@ -7,6 +7,7 @@ import { useEffect } from "react"
 import { onAuthStateChanged } from "firebase/auth"
 import { auth, db } from "./firebase"
 import { doc, updateDoc } from "firebase/firestore"
+import ProtectedRoute from "./components/ProtectRouts"
 
 function App() {
 
@@ -36,8 +37,13 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path='/login' element={<Login />} />
-          <Route path='/' element={<Chat />}/>
-          <Route path='/profile' element={<Profile />}/>
+
+          
+          <Route path='/' element={<ProtectedRoute><Chat /></ProtectedRoute>}/>
+          <Route path='/profile' element={<ProtectedRoute><Profile /></ProtectedRoute>}/>
+          
+
+          <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </BrowserRouter>
     </>

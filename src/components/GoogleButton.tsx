@@ -11,7 +11,7 @@ const GoogleButton = () => {
     
 
     const navigate = useNavigate();
-
+    
     const signInWithGoogle = async() => {
         try {
             const result = await signInWithPopup(auth, provider);
@@ -42,6 +42,8 @@ const GoogleButton = () => {
             }
         }
     }
+
+    
 
     return (
         <button
