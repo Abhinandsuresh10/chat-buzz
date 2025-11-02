@@ -136,7 +136,7 @@ const Profile = () => {
         data.append("folder", "chatBuzz");
 
         try {
-            const res = await fetch("https://api.cloudinary.com/v1_1/dit3hmnff/image/upload", {
+            const res = await fetch(import.meta.env.VITE_CLOUDINARY, {
                 method: "POST",
                 body: data,
             });

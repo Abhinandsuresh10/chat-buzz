@@ -1,14 +1,21 @@
+
+
 export interface UserDetails {
-  id: number;
+  id: string ;
   name: string;
-  lastMsg: string;
+  email: string;
+  phone: number;
   status: 'online' | 'offline' | 'typing';
-  profilePic?: string;
+  profileImage?: string;
+  lastMsg?: string;
 }
 
 export interface ChatMessage {
-  id: number;
+  id: string;
   text: string;
-  sender: 'user' | 'other';
+  type: string;
+  senderId: string;    
+  receiverId: string;    
   timestamp: Date;
+  status: 'sent' | 'delivered' | 'read';
 }

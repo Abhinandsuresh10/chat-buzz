@@ -16,10 +16,6 @@ const GoogleButton = () => {
         try {
             const result = await signInWithPopup(auth, provider);
             const user = result.user;
-            
-            console.log("User:", user);
-
-            // user creation...
 
            const userRef = doc(db, 'users', user.uid);
            const docSnap = await getDoc(userRef);
@@ -29,6 +25,7 @@ const GoogleButton = () => {
               name: user.displayName,
               email: user.email,
               uid: user.uid,
+              status: 'online',
               createdAt: new Date()
            });
             toast.success("welcome");
@@ -36,9 +33,6 @@ const GoogleButton = () => {
             console.log("User already exists in Firestore.");
            }
 
-            // const credential = GoogleAuthProvider.credentialFromResult(result);
-            // const token = credential?.accessToken;
-            // console.log("Access token:", token);
             navigate('/')
         } catch (error) {
             if(error instanceof FirebaseError) {
